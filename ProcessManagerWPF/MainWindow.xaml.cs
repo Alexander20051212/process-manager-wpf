@@ -14,31 +14,18 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using ProcessManagerWPF.Services;
+using ProcessManagerWPF.ViewModels;
 
 namespace ProcessManagerWPF
 {
     public partial class MainWindow : Window
     {
-        private readonly ProcessService _processService;
-        private readonly DispatcherTimer _timer;
-
         public MainWindow()
         {
             InitializeComponent();
 
-            _processService = new ProcessService();
-
-            _timer = new DispatcherTimer();
-            _timer.Interval = TimeSpan.FromSeconds(3);
-            _timer.Tick += (s, e) => LoadProcesses();
-            _timer.Start();
-
-            LoadProcesses();
-        }
-
-        private void LoadProcesses()
-        {
-            ProcessDataGrid.ItemsSource = _processService.GetAllProcesses();
+            // Устанавливаем ViewModel как DataContext
+            DataContext = new MainViewModel();
         }
     }
 }
