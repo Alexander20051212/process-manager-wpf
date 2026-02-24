@@ -22,8 +22,9 @@ namespace ProcessManagerWPF.ViewModels
         private ObservableCollection<ProcessInfo> _allProcesses;
 
         public ObservableCollection<ProcessInfo> Processes { get; set; }
-        public ObservableCollection<ProcessPriorityClass> PriorityLevels { get; }
+        public ObservableCollection<ThreadInfo> Threads { get; set; }
         public ObservableCollection<CoreItem> Cores { get; set; }
+        public ObservableCollection<ProcessPriorityClass> PriorityLevels { get; }
 
         public ICommand RefreshCommand { get; }
         public ICommand ChangePriorityCommand { get; }
@@ -38,7 +39,10 @@ namespace ProcessManagerWPF.ViewModels
                 OnPropertyChanged();
 
                 if (_selectedProcess != null)
+                {
                     LoadAffinity();
+                    LoadThreads();
+                }
             }
         }
 
@@ -58,6 +62,7 @@ namespace ProcessManagerWPF.ViewModels
             _processService = new ProcessService();
 
             Processes = new ObservableCollection<ProcessInfo>();
+            Threads = new ObservableCollection<ThreadInfo>();
             _allProcesses = new ObservableCollection<ProcessInfo>();
 
             PriorityLevels = new ObservableCollection<ProcessPriorityClass>
@@ -153,11 +158,7 @@ namespace ProcessManagerWPF.ViewModels
 
             if (!success)
             {
-                MessageBox.Show(
-                    "Ошибка изменения приоритета:\n" + errorMessage,
-                    "Ошибка",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                MessageBox.Show("Ошибка:\n" + errorMessage);
             }
 
             LoadProcesses();
@@ -175,9 +176,7 @@ namespace ProcessManagerWPF.ViewModels
                     core.IsSelected = (value & (1L << core.CoreIndex)) != 0;
                 }
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private void ApplyAffinity()
@@ -195,7 +194,7 @@ namespace ProcessManagerWPF.ViewModels
 
             if (mask == 0)
             {
-                MessageBox.Show("Необходимо выбрать хотя бы одно ядро.");
+                MessageBox.Show("Выберите хотя бы одно ядро.");
                 return;
             }
 
@@ -206,8 +205,21 @@ namespace ProcessManagerWPF.ViewModels
 
             if (!success)
             {
-                MessageBox.Show("Ошибка установки affinity:\n" + error);
+                MessageBox.Show("Ошибка affinity:\n" + error);
             }
+        }
+
+        private void LoadThreads()
+        {
+            Threads.Clear();
+
+            if (SelectedProcess == null)
+                return;
+
+            var threadList = _processService.GetProcessThreads(SelectedProcess.Id);
+
+            foreach (var thread in threadList)
+                Threads.Add(thread);
         }
     }
 }

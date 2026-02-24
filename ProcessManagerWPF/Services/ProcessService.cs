@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using ProcessManagerWPF.Models;
-using System.ComponentModel;
 
 namespace ProcessManagerWPF.Services
 {
@@ -27,17 +27,9 @@ namespace ProcessManagerWPF.Services
                         CpuTime = p.TotalProcessorTime
                     });
                 }
-                catch (Win32Exception)
-                {
-                    // Нет доступа
-                }
-                catch (InvalidOperationException)
-                {
-                    // Процесс завершился
-                }
-                catch
-                {
-                }
+                catch (Win32Exception) { }
+                catch (InvalidOperationException) { }
+                catch { }
             }
 
             return processList;
@@ -69,7 +61,7 @@ namespace ProcessManagerWPF.Services
             }
             catch (Win32Exception)
             {
-                errorMessage = "Недостаточно прав для изменения приоритета.";
+                errorMessage = "Недостаточно прав.";
                 return false;
             }
             catch (Exception ex)
@@ -95,7 +87,7 @@ namespace ProcessManagerWPF.Services
 
                 if (process.HasExited)
                 {
-                    error = "Процесс уже завершён.";
+                    error = "Процесс завершён.";
                     return false;
                 }
 
@@ -106,7 +98,7 @@ namespace ProcessManagerWPF.Services
             }
             catch (Win32Exception)
             {
-                error = "Недостаточно прав для изменения affinity.";
+                error = "Недостаточно прав.";
                 return false;
             }
             catch (Exception ex)
@@ -114,6 +106,34 @@ namespace ProcessManagerWPF.Services
                 error = ex.Message;
                 return false;
             }
+        }
+
+        public List<ThreadInfo> GetProcessThreads(int processId)
+        {
+            var threadList = new List<ThreadInfo>();
+
+            try
+            {
+                var process = Process.GetProcessById(processId);
+
+                foreach (ProcessThread thread in process.Threads)
+                {
+                    try
+                    {
+                        threadList.Add(new ThreadInfo
+                        {
+                            Id = thread.Id,
+                            Priority = thread.PriorityLevel.ToString(),
+                            State = thread.ThreadState.ToString(),
+                            ProcessorTime = thread.TotalProcessorTime
+                        });
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
+            return threadList;
         }
     }
 }
