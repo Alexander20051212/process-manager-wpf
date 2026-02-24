@@ -37,6 +37,7 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Data" />
+    <Reference Include="System.Management" />
     <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Core" />
@@ -56,6 +57,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Models\CoreItem.cs" />
+    <Compile Include="Models\ProcessTreeNode.cs" />
     <Compile Include="Models\ThreadInfo.cs" />
     <Compile Include="Services\ProcessService.cs" />
     <Compile Include="Utilities\RelayCommand.cs" />

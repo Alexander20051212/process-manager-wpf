@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
+using System.Management;
 using ProcessManagerWPF.Models;
 
 namespace ProcessManagerWPF.Services
@@ -10,14 +12,13 @@ namespace ProcessManagerWPF.Services
     {
         public List<ProcessInfo> GetAllProcesses()
         {
-            var processList = new List<ProcessInfo>();
-            var processes = Process.GetProcesses();
+            var list = new List<ProcessInfo>();
 
-            foreach (var p in processes)
+            foreach (var p in Process.GetProcesses())
             {
                 try
                 {
-                    processList.Add(new ProcessInfo
+                    list.Add(new ProcessInfo
                     {
                         Id = p.Id,
                         Name = p.ProcessName,
@@ -27,63 +28,19 @@ namespace ProcessManagerWPF.Services
                         CpuTime = p.TotalProcessorTime
                     });
                 }
-                catch (Win32Exception) { }
-                catch (InvalidOperationException) { }
                 catch { }
             }
 
-            return processList;
+            return list;
         }
 
-        public bool SetProcessPriority(int processId,
+        public bool SetProcessPriority(int pid,
                                        ProcessPriorityClass priority,
-                                       out string errorMessage)
+                                       out string error)
         {
             try
             {
-                var process = Process.GetProcessById(processId);
-
-                if (process.HasExited)
-                {
-                    errorMessage = "Процесс уже завершён.";
-                    return false;
-                }
-
-                process.PriorityClass = priority;
-
-                errorMessage = null;
-                return true;
-            }
-            catch (ArgumentException)
-            {
-                errorMessage = "Процесс не найден.";
-                return false;
-            }
-            catch (Win32Exception)
-            {
-                errorMessage = "Недостаточно прав.";
-                return false;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-        public IntPtr GetProcessorAffinity(int processId)
-        {
-            var process = Process.GetProcessById(processId);
-            return process.ProcessorAffinity;
-        }
-
-        public bool SetProcessorAffinity(int processId,
-                                         IntPtr mask,
-                                         out string error)
-        {
-            try
-            {
-                var process = Process.GetProcessById(processId);
+                var process = Process.GetProcessById(pid);
 
                 if (process.HasExited)
                 {
@@ -91,15 +48,9 @@ namespace ProcessManagerWPF.Services
                     return false;
                 }
 
-                process.ProcessorAffinity = mask;
-
+                process.PriorityClass = priority;
                 error = null;
                 return true;
-            }
-            catch (Win32Exception)
-            {
-                error = "Недостаточно прав.";
-                return false;
             }
             catch (Exception ex)
             {
@@ -108,24 +59,47 @@ namespace ProcessManagerWPF.Services
             }
         }
 
-        public List<ThreadInfo> GetProcessThreads(int processId)
+        public IntPtr GetProcessorAffinity(int pid)
         {
-            var threadList = new List<ThreadInfo>();
+            return Process.GetProcessById(pid).ProcessorAffinity;
+        }
+
+        public bool SetProcessorAffinity(int pid,
+                                         IntPtr mask,
+                                         out string error)
+        {
+            try
+            {
+                var process = Process.GetProcessById(pid);
+                process.ProcessorAffinity = mask;
+                error = null;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        public List<ThreadInfo> GetProcessThreads(int pid)
+        {
+            var list = new List<ThreadInfo>();
 
             try
             {
-                var process = Process.GetProcessById(processId);
+                var process = Process.GetProcessById(pid);
 
-                foreach (ProcessThread thread in process.Threads)
+                foreach (ProcessThread t in process.Threads)
                 {
                     try
                     {
-                        threadList.Add(new ThreadInfo
+                        list.Add(new ThreadInfo
                         {
-                            Id = thread.Id,
-                            Priority = thread.PriorityLevel.ToString(),
-                            State = thread.ThreadState.ToString(),
-                            ProcessorTime = thread.TotalProcessorTime
+                            Id = t.Id,
+                            Priority = t.PriorityLevel.ToString(),
+                            State = t.ThreadState.ToString(),
+                            ProcessorTime = t.TotalProcessorTime
                         });
                     }
                     catch { }
@@ -133,7 +107,53 @@ namespace ProcessManagerWPF.Services
             }
             catch { }
 
-            return threadList;
+            return list;
+        }
+
+        public List<ProcessTreeNode> GetProcessTree()
+        {
+            var processes = Process.GetProcesses();
+            var nodes = new Dictionary<int, ProcessTreeNode>();
+            var parentMap = new Dictionary<int, int>();
+
+            foreach (var p in processes)
+            {
+                nodes[p.Id] = new ProcessTreeNode
+                {
+                    Id = p.Id,
+                    Name = p.ProcessName
+                };
+            }
+
+            var searcher = new ManagementObjectSearcher(
+                "SELECT ProcessId, ParentProcessId FROM Win32_Process");
+
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                int pid = Convert.ToInt32(obj["ProcessId"]);
+                int parent = Convert.ToInt32(obj["ParentProcessId"]);
+                parentMap[pid] = parent;
+            }
+
+            var roots = new List<ProcessTreeNode>();
+
+            foreach (var pair in nodes)
+            {
+                int pid = pair.Key;
+                var node = pair.Value;
+
+                if (parentMap.ContainsKey(pid) &&
+                    nodes.ContainsKey(parentMap[pid]))
+                {
+                    nodes[parentMap[pid]].Children.Add(node);
+                }
+                else
+                {
+                    roots.Add(node);
+                }
+            }
+
+            return roots;
         }
     }
 }

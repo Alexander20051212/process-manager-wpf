@@ -13,7 +13,7 @@ namespace ProcessManagerWPF.ViewModels
 {
     public class MainViewModel : BaseViewModel
     {
-        private readonly ProcessService _processService;
+        private readonly ProcessService _service;
         private readonly DispatcherTimer _timer;
 
         private string _searchText;
@@ -24,6 +24,7 @@ namespace ProcessManagerWPF.ViewModels
         public ObservableCollection<ProcessInfo> Processes { get; set; }
         public ObservableCollection<ThreadInfo> Threads { get; set; }
         public ObservableCollection<CoreItem> Cores { get; set; }
+        public ObservableCollection<ProcessTreeNode> ProcessTree { get; set; }
         public ObservableCollection<ProcessPriorityClass> PriorityLevels { get; }
 
         public ICommand RefreshCommand { get; }
@@ -40,8 +41,8 @@ namespace ProcessManagerWPF.ViewModels
 
                 if (_selectedProcess != null)
                 {
-                    LoadAffinity();
                     LoadThreads();
+                    LoadAffinity();
                 }
             }
         }
@@ -59,10 +60,11 @@ namespace ProcessManagerWPF.ViewModels
 
         public MainViewModel()
         {
-            _processService = new ProcessService();
+            _service = new ProcessService();
 
             Processes = new ObservableCollection<ProcessInfo>();
             Threads = new ObservableCollection<ThreadInfo>();
+            ProcessTree = new ObservableCollection<ProcessTreeNode>();
             _allProcesses = new ObservableCollection<ProcessInfo>();
 
             PriorityLevels = new ObservableCollection<ProcessPriorityClass>
@@ -76,36 +78,36 @@ namespace ProcessManagerWPF.ViewModels
             };
 
             Cores = new ObservableCollection<CoreItem>();
-            int coreCount = Environment.ProcessorCount;
-
-            for (int i = 0; i < coreCount; i++)
+            for (int i = 0; i < Environment.ProcessorCount; i++)
             {
-                Cores.Add(new CoreItem
-                {
-                    CoreIndex = i,
-                    IsSelected = true
-                });
+                Cores.Add(new CoreItem { CoreIndex = i, IsSelected = true });
             }
 
-            RefreshCommand = new RelayCommand(_ => LoadProcesses());
-            ChangePriorityCommand = new RelayCommand(ChangePriority, CanChangePriority);
+            RefreshCommand = new RelayCommand(_ => RefreshAll());
+            ChangePriorityCommand = new RelayCommand(ChangePriority, _ => SelectedProcess != null);
             ApplyAffinityCommand = new RelayCommand(_ => ApplyAffinity(), _ => SelectedProcess != null);
 
-            LoadProcesses();
+            RefreshAll();
 
             _timer = new DispatcherTimer();
             _timer.Interval = TimeSpan.FromSeconds(3);
-            _timer.Tick += (s, e) => LoadProcesses();
+            _timer.Tick += (s, e) => RefreshAll();
             _timer.Start();
+        }
+
+        private void RefreshAll()
+        {
+            LoadProcesses();
+            LoadProcessTree();
         }
 
         private void LoadProcesses()
         {
-            var processList = _processService.GetAllProcesses();
+            var list = _service.GetAllProcesses();
 
             _allProcesses.Clear();
-            foreach (var process in processList)
-                _allProcesses.Add(process);
+            foreach (var p in list)
+                _allProcesses.Add(p);
 
             ApplyFilter();
         }
@@ -120,20 +122,12 @@ namespace ProcessManagerWPF.ViewModels
                     _allProcesses.Where(p =>
                         p.Name.ToLower().Contains(SearchText.ToLower())));
 
-            foreach (var process in filtered)
-                Processes.Add(process);
-        }
-
-        private bool CanChangePriority(object parameter)
-        {
-            return SelectedProcess != null && parameter is ProcessPriorityClass;
+            foreach (var p in filtered)
+                Processes.Add(p);
         }
 
         private void ChangePriority(object parameter)
         {
-            if (SelectedProcess == null)
-                return;
-
             if (!(parameter is ProcessPriorityClass))
                 return;
 
@@ -142,7 +136,7 @@ namespace ProcessManagerWPF.ViewModels
             if (newPriority == ProcessPriorityClass.RealTime)
             {
                 var result = MessageBox.Show(
-                    "Приоритет RealTime может нарушить работу системы. Продолжить?",
+                    "RealTime может нарушить работу системы. Продолжить?",
                     "Внимание",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Warning);
@@ -151,46 +145,43 @@ namespace ProcessManagerWPF.ViewModels
                     return;
             }
 
-            var success = _processService.SetProcessPriority(
+            _service.SetProcessPriority(
                 SelectedProcess.Id,
                 newPriority,
-                out string errorMessage);
+                out string error);
 
-            if (!success)
-            {
-                MessageBox.Show("Ошибка:\n" + errorMessage);
-            }
+            if (error != null)
+                MessageBox.Show(error);
 
-            LoadProcesses();
+            RefreshAll();
+        }
+
+        private void LoadThreads()
+        {
+            Threads.Clear();
+            foreach (var t in _service.GetProcessThreads(SelectedProcess.Id))
+                Threads.Add(t);
         }
 
         private void LoadAffinity()
         {
             try
             {
-                var mask = _processService.GetProcessorAffinity(SelectedProcess.Id);
-                long value = mask.ToInt64();
+                long mask = _service.GetProcessorAffinity(SelectedProcess.Id).ToInt64();
 
                 foreach (var core in Cores)
-                {
-                    core.IsSelected = (value & (1L << core.CoreIndex)) != 0;
-                }
+                    core.IsSelected = (mask & (1L << core.CoreIndex)) != 0;
             }
             catch { }
         }
 
         private void ApplyAffinity()
         {
-            if (SelectedProcess == null)
-                return;
-
             long mask = 0;
 
             foreach (var core in Cores)
-            {
                 if (core.IsSelected)
                     mask |= (1L << core.CoreIndex);
-            }
 
             if (mask == 0)
             {
@@ -198,28 +189,20 @@ namespace ProcessManagerWPF.ViewModels
                 return;
             }
 
-            var success = _processService.SetProcessorAffinity(
+            _service.SetProcessorAffinity(
                 SelectedProcess.Id,
                 new IntPtr(mask),
                 out string error);
 
-            if (!success)
-            {
-                MessageBox.Show("Ошибка affinity:\n" + error);
-            }
+            if (error != null)
+                MessageBox.Show(error);
         }
 
-        private void LoadThreads()
+        private void LoadProcessTree()
         {
-            Threads.Clear();
-
-            if (SelectedProcess == null)
-                return;
-
-            var threadList = _processService.GetProcessThreads(SelectedProcess.Id);
-
-            foreach (var thread in threadList)
-                Threads.Add(thread);
+            ProcessTree.Clear();
+            foreach (var node in _service.GetProcessTree())
+                ProcessTree.Add(node);
         }
     }
 }
