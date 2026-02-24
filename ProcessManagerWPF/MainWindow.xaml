@@ -1,12 +1,25 @@
 ﻿<Window x:Class="ProcessManagerWPF.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:ProcessManagerWPF"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="Process Manager" Height="600" Width="1000">
+
     <Grid>
-        
+        <DataGrid x:Name="ProcessDataGrid"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  Margin="10">
+
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="PID" Binding="{Binding Id}" Width="80"/>
+                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
+                <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="120"/>
+                <DataGridTextColumn Header="Memory (MB)" 
+                                    Binding="{Binding MemoryUsage}" 
+                                    Width="120"/>
+                <DataGridTextColumn Header="Threads" Binding="{Binding ThreadCount}" Width="80"/>
+                <DataGridTextColumn Header="CPU Time" Binding="{Binding CpuTime}" Width="150"/>
+            </DataGrid.Columns>
+
+        </DataGrid>
     </Grid>
 </Window>
