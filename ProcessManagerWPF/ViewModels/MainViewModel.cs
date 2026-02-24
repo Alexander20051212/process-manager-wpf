@@ -1,13 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Windows;
+using System.Windows.Input;
 using System.Windows.Threading;
 using ProcessManagerWPF.Models;
 using ProcessManagerWPF.Services;
-using System.Windows.Input;
 using ProcessManagerWPF.Utilities;
 
 namespace ProcessManagerWPF.ViewModels
@@ -18,11 +17,25 @@ namespace ProcessManagerWPF.ViewModels
         private readonly DispatcherTimer _timer;
 
         private string _searchText;
+        private ProcessInfo _selectedProcess;
 
-        public ObservableCollection<ProcessInfo> Processes { get; set; }
         private ObservableCollection<ProcessInfo> _allProcesses;
 
+        public ObservableCollection<ProcessInfo> Processes { get; set; }
+        public ObservableCollection<ProcessPriorityClass> PriorityLevels { get; }
+
         public ICommand RefreshCommand { get; }
+        public ICommand ChangePriorityCommand { get; }
+
+        public ProcessInfo SelectedProcess
+        {
+            get => _selectedProcess;
+            set
+            {
+                _selectedProcess = value;
+                OnPropertyChanged();
+            }
+        }
 
         public string SearchText
         {
@@ -38,10 +51,22 @@ namespace ProcessManagerWPF.ViewModels
         public MainViewModel()
         {
             _processService = new ProcessService();
+
             Processes = new ObservableCollection<ProcessInfo>();
             _allProcesses = new ObservableCollection<ProcessInfo>();
 
+            PriorityLevels = new ObservableCollection<ProcessPriorityClass>
+            {
+                ProcessPriorityClass.Idle,
+                ProcessPriorityClass.BelowNormal,
+                ProcessPriorityClass.Normal,
+                ProcessPriorityClass.AboveNormal,
+                ProcessPriorityClass.High,
+                ProcessPriorityClass.RealTime
+            };
+
             RefreshCommand = new RelayCommand(_ => LoadProcesses());
+            ChangePriorityCommand = new RelayCommand(ChangePriority, CanChangePriority);
 
             LoadProcesses();
 
@@ -49,6 +74,7 @@ namespace ProcessManagerWPF.ViewModels
             {
                 Interval = TimeSpan.FromSeconds(3)
             };
+
             _timer.Tick += (s, e) => LoadProcesses();
             _timer.Start();
         }
@@ -76,6 +102,45 @@ namespace ProcessManagerWPF.ViewModels
 
             foreach (var process in filtered)
                 Processes.Add(process);
+        }
+
+        private bool CanChangePriority(object parameter)
+        {
+            return SelectedProcess != null && parameter is ProcessPriorityClass;
+        }
+
+        private void ChangePriority(object parameter)
+        {
+            if (SelectedProcess == null || parameter is not ProcessPriorityClass newPriority)
+                return;
+
+            if (newPriority == ProcessPriorityClass.RealTime)
+            {
+                var result = MessageBox.Show(
+                    "Приоритет RealTime может нарушить работу системы. Продолжить?",
+                    "Внимание",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.No)
+                    return;
+            }
+
+            var success = _processService.SetProcessPriority(
+                SelectedProcess.Id,
+                newPriority,
+                out string errorMessage);
+
+            if (!success)
+            {
+                MessageBox.Show(
+                    $"Ошибка изменения приоритета:\n{errorMessage}",
+                    "Ошибка",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+
+            LoadProcesses();
         }
     }
 }

@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Process Manager"
         Height="600"
-        Width="1000"
+        Width="1100"
         WindowStartupLocation="CenterScreen">
 
     <Grid Margin="10">
@@ -15,34 +15,72 @@
         <!-- Панель управления -->
         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
 
+            <!-- Поиск -->
             <TextBlock Text="Search:"
                        VerticalAlignment="Center"
                        Margin="0,0,5,0"/>
 
             <TextBox Width="200"
                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,0,10,0"/>
+                     Margin="0,0,20,0"/>
 
+            <!-- Выбор приоритета -->
+            <TextBlock Text="Set Priority:"
+                       VerticalAlignment="Center"
+                       Margin="0,0,5,0"/>
+
+            <ComboBox x:Name="PriorityComboBox"
+                      Width="150"
+                      ItemsSource="{Binding PriorityLevels}"
+                      Margin="0,0,10,0"/>
+
+            <Button Content="Apply"
+                    Width="80"
+                    Command="{Binding ChangePriorityCommand}"
+                    CommandParameter="{Binding SelectedItem, ElementName=PriorityComboBox}"/>
+
+            <!-- Обновление -->
             <Button Content="Refresh"
                     Width="100"
+                    Margin="30,0,0,0"
                     Command="{Binding RefreshCommand}"/>
 
         </StackPanel>
 
-        <!-- Таблица -->
+        <!-- Таблица процессов -->
         <DataGrid Grid.Row="1"
                   ItemsSource="{Binding Processes}"
+                  SelectedItem="{Binding SelectedProcess}"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   CanUserSortColumns="True">
 
             <DataGrid.Columns>
-                <DataGridTextColumn Header="PID" Binding="{Binding Id}" Width="80"/>
-                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
-                <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="120"/>
-                <DataGridTextColumn Header="Memory (MB)" Binding="{Binding MemoryUsage}" Width="120"/>
-                <DataGridTextColumn Header="Threads" Binding="{Binding ThreadCount}" Width="80"/>
-                <DataGridTextColumn Header="CPU Time" Binding="{Binding CpuTime}" Width="150"/>
+
+                <DataGridTextColumn Header="PID"
+                                    Binding="{Binding Id}"
+                                    Width="80"/>
+
+                <DataGridTextColumn Header="Name"
+                                    Binding="{Binding Name}"
+                                    Width="200"/>
+
+                <DataGridTextColumn Header="Priority"
+                                    Binding="{Binding Priority}"
+                                    Width="120"/>
+
+                <DataGridTextColumn Header="Memory (Bytes)"
+                                    Binding="{Binding MemoryUsage}"
+                                    Width="130"/>
+
+                <DataGridTextColumn Header="Threads"
+                                    Binding="{Binding ThreadCount}"
+                                    Width="80"/>
+
+                <DataGridTextColumn Header="CPU Time"
+                                    Binding="{Binding CpuTime}"
+                                    Width="150"/>
+
             </DataGrid.Columns>
 
         </DataGrid>
