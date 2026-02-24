@@ -8,9 +8,6 @@ namespace ProcessManagerWPF.Services
 {
     public class ProcessService
     {
-        /// <summary>
-        /// Получение списка всех процессов
-        /// </summary>
         public List<ProcessInfo> GetAllProcesses()
         {
             var processList = new List<ProcessInfo>();
@@ -32,24 +29,20 @@ namespace ProcessManagerWPF.Services
                 }
                 catch (Win32Exception)
                 {
-                    // Недостаточно прав доступа — пропускаем процесс
+                    // Нет доступа
                 }
                 catch (InvalidOperationException)
                 {
-                    // Процесс завершился во время чтения
+                    // Процесс завершился
                 }
                 catch
                 {
-                    // Любые другие исключения — игнорируем
                 }
             }
 
             return processList;
         }
 
-        /// <summary>
-        /// Изменение приоритета процесса
-        /// </summary>
         public bool SetProcessPriority(int processId,
                                        ProcessPriorityClass priority,
                                        out string errorMessage)
@@ -71,7 +64,7 @@ namespace ProcessManagerWPF.Services
             }
             catch (ArgumentException)
             {
-                errorMessage = "Процесс с указанным ID не найден.";
+                errorMessage = "Процесс не найден.";
                 return false;
             }
             catch (Win32Exception)
@@ -79,14 +72,46 @@ namespace ProcessManagerWPF.Services
                 errorMessage = "Недостаточно прав для изменения приоритета.";
                 return false;
             }
-            catch (InvalidOperationException)
+            catch (Exception ex)
             {
-                errorMessage = "Процесс завершился во время операции.";
+                errorMessage = ex.Message;
+                return false;
+            }
+        }
+
+        public IntPtr GetProcessorAffinity(int processId)
+        {
+            var process = Process.GetProcessById(processId);
+            return process.ProcessorAffinity;
+        }
+
+        public bool SetProcessorAffinity(int processId,
+                                         IntPtr mask,
+                                         out string error)
+        {
+            try
+            {
+                var process = Process.GetProcessById(processId);
+
+                if (process.HasExited)
+                {
+                    error = "Процесс уже завершён.";
+                    return false;
+                }
+
+                process.ProcessorAffinity = mask;
+
+                error = null;
+                return true;
+            }
+            catch (Win32Exception)
+            {
+                error = "Недостаточно прав для изменения affinity.";
                 return false;
             }
             catch (Exception ex)
             {
-                errorMessage = $"Неизвестная ошибка: {ex.Message}";
+                error = ex.Message;
                 return false;
             }
         }
