@@ -24,7 +24,6 @@ namespace ProcessManagerWPF
         {
             InitializeComponent();
 
-            // Устанавливаем ViewModel как DataContext
             DataContext = new MainViewModel();
         }
     }

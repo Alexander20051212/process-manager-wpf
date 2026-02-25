@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
-using System.Linq;
 using System.Management;
 using ProcessManagerWPF.Models;
 
@@ -10,6 +8,41 @@ namespace ProcessManagerWPF.Services
 {
     public class ProcessService
     {
+        private readonly PerformanceCounter _cpuCounter =
+            new PerformanceCounter("Processor", "% Processor Time", "_Total");
+
+        private readonly PerformanceCounter _ramCounter =
+            new PerformanceCounter("Memory", "Available MBytes");
+
+
+        public float GetCpuUsage()
+        {
+            return _cpuCounter.NextValue();
+        }
+
+        public float GetUsedRam()
+        {
+            var available = _ramCounter.NextValue();
+
+            var total = GetTotalPhysicalMemory();
+
+            return total - available;
+        }
+
+        private float GetTotalPhysicalMemory()
+        {
+            var searcher = new ManagementObjectSearcher(
+                "SELECT TotalVisibleMemorySize FROM Win32_OperatingSystem");
+
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                float totalKb = Convert.ToSingle(obj["TotalVisibleMemorySize"]);
+                return totalKb / 1024f;
+            }
+
+            return 0;
+        }
+
         public List<ProcessInfo> GetAllProcesses()
         {
             var list = new List<ProcessInfo>();
@@ -41,14 +74,24 @@ namespace ProcessManagerWPF.Services
             try
             {
                 var process = Process.GetProcessById(pid);
-
-                if (process.HasExited)
-                {
-                    error = "Процесс завершён.";
-                    return false;
-                }
-
                 process.PriorityClass = priority;
+                error = null;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        public bool KillProcess(int pid, out string error)
+        {
+            try
+            {
+                var process = Process.GetProcessById(pid);
+                process.Kill();
+                process.WaitForExit(3000);
                 error = null;
                 return true;
             }
@@ -70,8 +113,7 @@ namespace ProcessManagerWPF.Services
         {
             try
             {
-                var process = Process.GetProcessById(pid);
-                process.ProcessorAffinity = mask;
+                Process.GetProcessById(pid).ProcessorAffinity = mask;
                 error = null;
                 return true;
             }
@@ -112,11 +154,10 @@ namespace ProcessManagerWPF.Services
 
         public List<ProcessTreeNode> GetProcessTree()
         {
-            var processes = Process.GetProcesses();
             var nodes = new Dictionary<int, ProcessTreeNode>();
             var parentMap = new Dictionary<int, int>();
 
-            foreach (var p in processes)
+            foreach (var p in Process.GetProcesses())
             {
                 nodes[p.Id] = new ProcessTreeNode
                 {
@@ -154,35 +195,6 @@ namespace ProcessManagerWPF.Services
             }
 
             return roots;
-        }
-        public bool KillProcess(int pid, out string error)
-        {
-            try
-            {
-                var process = Process.GetProcessById(pid);
-
-                if (process.HasExited)
-                {
-                    error = "Процесс уже завершён.";
-                    return false;
-                }
-
-                process.Kill();
-                process.WaitForExit(3000);
-
-                error = null;
-                return true;
-            }
-            catch (Win32Exception)
-            {
-                error = "Недостаточно прав для завершения процесса.";
-                return false;
-            }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                return false;
-            }
         }
     }
 }

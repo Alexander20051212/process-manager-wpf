@@ -15,5 +15,10 @@ namespace ProcessManagerWPF.Models
         public long MemoryUsage { get; set; }
         public int ThreadCount { get; set; }
         public TimeSpan CpuTime { get; set; }
+
+        public double MemoryMB
+        {
+            get { return MemoryUsage / 1024.0 / 1024.0; }
+        }
     }
 }
