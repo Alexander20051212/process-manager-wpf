@@ -155,5 +155,34 @@ namespace ProcessManagerWPF.Services
 
             return roots;
         }
+        public bool KillProcess(int pid, out string error)
+        {
+            try
+            {
+                var process = Process.GetProcessById(pid);
+
+                if (process.HasExited)
+                {
+                    error = "Процесс уже завершён.";
+                    return false;
+                }
+
+                process.Kill();
+                process.WaitForExit(3000);
+
+                error = null;
+                return true;
+            }
+            catch (Win32Exception)
+            {
+                error = "Недостаточно прав для завершения процесса.";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
     }
 }

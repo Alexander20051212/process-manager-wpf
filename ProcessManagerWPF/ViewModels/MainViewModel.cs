@@ -16,20 +16,22 @@ namespace ProcessManagerWPF.ViewModels
         private readonly ProcessService _service;
         private readonly DispatcherTimer _timer;
 
-        private string _searchText;
         private ProcessInfo _selectedProcess;
+        private string _searchText;
 
         private ObservableCollection<ProcessInfo> _allProcesses;
 
-        public ObservableCollection<ProcessInfo> Processes { get; set; }
-        public ObservableCollection<ThreadInfo> Threads { get; set; }
-        public ObservableCollection<CoreItem> Cores { get; set; }
-        public ObservableCollection<ProcessTreeNode> ProcessTree { get; set; }
+        public ObservableCollection<ProcessInfo> Processes { get; }
+        public ObservableCollection<ThreadInfo> Threads { get; }
+        public ObservableCollection<CoreItem> Cores { get; }
+        public ObservableCollection<ProcessTreeNode> ProcessTree { get; }
+
         public ObservableCollection<ProcessPriorityClass> PriorityLevels { get; }
 
         public ICommand RefreshCommand { get; }
         public ICommand ChangePriorityCommand { get; }
         public ICommand ApplyAffinityCommand { get; }
+        public ICommand KillProcessCommand { get; }
 
         public ProcessInfo SelectedProcess
         {
@@ -39,7 +41,7 @@ namespace ProcessManagerWPF.ViewModels
                 _selectedProcess = value;
                 OnPropertyChanged();
 
-                if (_selectedProcess != null)
+                if (value != null)
                 {
                     LoadThreads();
                     LoadAffinity();
@@ -67,6 +69,11 @@ namespace ProcessManagerWPF.ViewModels
             ProcessTree = new ObservableCollection<ProcessTreeNode>();
             _allProcesses = new ObservableCollection<ProcessInfo>();
 
+            Cores = new ObservableCollection<CoreItem>();
+
+            for (int i = 0; i < Environment.ProcessorCount; i++)
+                Cores.Add(new CoreItem { CoreIndex = i, IsSelected = true });
+
             PriorityLevels = new ObservableCollection<ProcessPriorityClass>
             {
                 ProcessPriorityClass.Idle,
@@ -77,20 +84,21 @@ namespace ProcessManagerWPF.ViewModels
                 ProcessPriorityClass.RealTime
             };
 
-            Cores = new ObservableCollection<CoreItem>();
-            for (int i = 0; i < Environment.ProcessorCount; i++)
-            {
-                Cores.Add(new CoreItem { CoreIndex = i, IsSelected = true });
-            }
-
             RefreshCommand = new RelayCommand(_ => RefreshAll());
-            ChangePriorityCommand = new RelayCommand(ChangePriority, _ => SelectedProcess != null);
-            ApplyAffinityCommand = new RelayCommand(_ => ApplyAffinity(), _ => SelectedProcess != null);
+            ChangePriorityCommand =
+                new RelayCommand(ChangePriority, _ => SelectedProcess != null);
+            ApplyAffinityCommand =
+                new RelayCommand(_ => ApplyAffinity(), _ => SelectedProcess != null);
+            KillProcessCommand =
+                new RelayCommand(_ => KillProcess(), _ => SelectedProcess != null);
 
             RefreshAll();
 
-            _timer = new DispatcherTimer();
-            _timer.Interval = TimeSpan.FromSeconds(3);
+            _timer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(3)
+            };
+
             _timer.Tick += (s, e) => RefreshAll();
             _timer.Start();
         }
@@ -128,26 +136,12 @@ namespace ProcessManagerWPF.ViewModels
 
         private void ChangePriority(object parameter)
         {
-            if (!(parameter is ProcessPriorityClass))
+            if (!(parameter is ProcessPriorityClass priority))
                 return;
-
-            var newPriority = (ProcessPriorityClass)parameter;
-
-            if (newPriority == ProcessPriorityClass.RealTime)
-            {
-                var result = MessageBox.Show(
-                    "RealTime может нарушить работу системы. Продолжить?",
-                    "Внимание",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
-
-                if (result == MessageBoxResult.No)
-                    return;
-            }
 
             _service.SetProcessPriority(
                 SelectedProcess.Id,
-                newPriority,
+                priority,
                 out string error);
 
             if (error != null)
@@ -159,7 +153,9 @@ namespace ProcessManagerWPF.ViewModels
         private void LoadThreads()
         {
             Threads.Clear();
-            foreach (var t in _service.GetProcessThreads(SelectedProcess.Id))
+
+            foreach (var t in
+                     _service.GetProcessThreads(SelectedProcess.Id))
                 Threads.Add(t);
         }
 
@@ -167,10 +163,13 @@ namespace ProcessManagerWPF.ViewModels
         {
             try
             {
-                long mask = _service.GetProcessorAffinity(SelectedProcess.Id).ToInt64();
+                long mask =
+                    _service.GetProcessorAffinity(
+                        SelectedProcess.Id).ToInt64();
 
                 foreach (var core in Cores)
-                    core.IsSelected = (mask & (1L << core.CoreIndex)) != 0;
+                    core.IsSelected =
+                        (mask & (1L << core.CoreIndex)) != 0;
             }
             catch { }
         }
@@ -185,7 +184,7 @@ namespace ProcessManagerWPF.ViewModels
 
             if (mask == 0)
             {
-                MessageBox.Show("Выберите хотя бы одно ядро.");
+                MessageBox.Show("Select at least one CPU core.");
                 return;
             }
 
@@ -198,9 +197,31 @@ namespace ProcessManagerWPF.ViewModels
                 MessageBox.Show(error);
         }
 
+        private void KillProcess()
+        {
+            var result = MessageBox.Show(
+                $"Terminate {SelectedProcess.Name} ?",
+                "Confirm",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            _service.KillProcess(
+                SelectedProcess.Id,
+                out string error);
+
+            if (error != null)
+                MessageBox.Show(error);
+
+            RefreshAll();
+        }
+
         private void LoadProcessTree()
         {
             ProcessTree.Clear();
+
             foreach (var node in _service.GetProcessTree())
                 ProcessTree.Add(node);
         }
