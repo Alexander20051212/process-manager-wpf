@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using ProcessManagerWPF.Models;
@@ -16,6 +18,8 @@ namespace ProcessManagerWPF.ViewModels
         private readonly DispatcherTimer _timer;
 
         private ProcessInfo _selectedProcess;
+        private string _searchText;
+        private ICollectionView _processesView;
 
         public ObservableCollection<ProcessInfo> Processes { get; }
         public ObservableCollection<ThreadInfo> Threads { get; }
@@ -28,6 +32,20 @@ namespace ProcessManagerWPF.ViewModels
         public ICommand KillCommand { get; }
         public ICommand ChangePriorityCommand { get; }
         public ICommand ApplyAffinityCommand { get; }
+
+        private double _currentCpu;
+        public double CurrentCpu
+        {
+            get => _currentCpu;
+            set { _currentCpu = value; OnPropertyChanged(); }
+        }
+
+        private double _currentRam;
+        public double CurrentRam
+        {
+            get => _currentRam;
+            set { _currentRam = value; OnPropertyChanged(); }
+        }
 
         public ProcessInfo SelectedProcess
         {
@@ -45,8 +63,16 @@ namespace ProcessManagerWPF.ViewModels
             }
         }
 
-        public double CurrentCpu { get; set; }
-        public double CurrentRam { get; set; }
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                _searchText = value;
+                OnPropertyChanged();
+                _processesView.Refresh();
+            }
+        }
 
         public MainViewModel()
         {
@@ -77,9 +103,12 @@ namespace ProcessManagerWPF.ViewModels
             ApplyAffinityCommand =
                 new RelayCommand(_ => ApplyAffinity(), _ => SelectedProcess != null);
 
+            _processesView = CollectionViewSource.GetDefaultView(Processes);
+            _processesView.Filter = FilterProcesses;
+
             _timer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(2)
+                Interval = TimeSpan.FromSeconds(7)
             };
 
             _timer.Tick += (s, e) =>
@@ -101,6 +130,19 @@ namespace ProcessManagerWPF.ViewModels
 
             foreach (var p in _service.GetAllProcesses())
                 Processes.Add(p);
+        }
+
+        private bool FilterProcesses(object obj)
+        {
+            if (string.IsNullOrWhiteSpace(SearchText))
+                return true;
+
+            if (obj is ProcessInfo process)
+                return process.Name
+                    .ToLower()
+                    .Contains(SearchText.ToLower());
+
+            return false;
         }
 
         private void LoadThreads()
@@ -193,8 +235,6 @@ namespace ProcessManagerWPF.ViewModels
         {
             CurrentCpu = _service.GetCpuUsage();
             CurrentRam = _service.GetUsedRam();
-            OnPropertyChanged(nameof(CurrentCpu));
-            OnPropertyChanged(nameof(CurrentRam));
         }
     }
 }

@@ -1,106 +1,91 @@
 ﻿<Window x:Class="ProcessManagerWPF.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Advanced Process Manager"
-        Height="900"
-        Width="1400"
-        Background="#1E1E1E"
-        Foreground="White"
-        WindowStartupLocation="CenterScreen">
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Process Manager" Height="800" Width="1200">
 
-    <ScrollViewer>
-        <StackPanel Margin="15">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="2*"/>
+            <RowDefinition Height="2*"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-            <TextBlock Text="SYSTEM MONITOR"
-                       FontSize="22"
-                       FontWeight="Bold"/>
+        <!-- Поиск -->
+        <StackPanel Orientation="Horizontal">
+            <TextBlock Text="Search:" VerticalAlignment="Center"/>
+            <TextBox Width="200"
+                     Margin="5"
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+            <Button Content="Refresh"
+                    Width="100"
+                    Command="{Binding RefreshCommand}"/>
+        </StackPanel>
 
-            <TextBlock Text="{Binding CurrentCpu, StringFormat=CPU: {0:F1}%}"/>
-            <TextBlock Text="{Binding CurrentRam, StringFormat=RAM Used: {0:F0} MB}"
-                       Margin="0,0,0,15"/>
+        <!-- Процессы -->
+        <DataGrid Grid.Row="1"
+                  ItemsSource="{Binding Processes}"
+                  SelectedItem="{Binding SelectedProcess, Mode=TwoWay}"
+                  AutoGenerateColumns="True"
+                  IsReadOnly="True"/>
 
-            <TextBlock Text="PROCESSES"
-                       FontSize="20"
-                       FontWeight="Bold"/>
+        <!-- Потоки -->
+        <DataGrid Grid.Row="2"
+                  ItemsSource="{Binding Threads}"
+                  AutoGenerateColumns="True"
+                  IsReadOnly="True"/>
 
-            <StackPanel Orientation="Horizontal" Margin="0,5">
-                <TextBox Width="250"
-                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
-                <Button Content="Refresh"
-                        Command="{Binding RefreshCommand}"
-                        Margin="5,0"/>
+        <!-- Нижняя панель -->
+        <Grid Grid.Row="3" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- CPU Affinity -->
+            <GroupBox Header="CPU Affinity">
+                <ItemsControl ItemsSource="{Binding Cores}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox Content="{Binding CoreIndex}"
+                                      IsChecked="{Binding IsSelected}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </GroupBox>
+
+            <!-- Приоритет -->
+            <StackPanel Grid.Column="1">
+                <TextBlock Text="Priority:"/>
+                <ComboBox ItemsSource="{Binding PriorityLevels}"
+                          SelectedItem="{Binding SelectedProcess.Priority, Mode=TwoWay}"/>
+                <Button Content="Apply Priority"
+                        Margin="0,5,0,0"
+                        Command="{Binding ChangePriorityCommand}"
+                        CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource PreviousData}}"/>
+                <Button Content="Terminate"
+                        Margin="0,5,0,0"
+                        Command="{Binding KillCommand}"/>
+                <Button Content="Apply Affinity"
+                        Margin="0,5,0,0"
+                        Command="{Binding ApplyAffinityCommand}"/>
             </StackPanel>
 
-            <DataGrid ItemsSource="{Binding Processes}"
-                      SelectedItem="{Binding SelectedProcess, Mode=TwoWay}"
-                      AutoGenerateColumns="True"
-                      Height="250"
-                      IsReadOnly="True"/>
-
-            <TextBlock Text="Change Priority" Margin="0,10,0,0"/>
-
-            <ComboBox ItemsSource="{Binding PriorityLevels}"
-                      SelectedItem="{Binding SelectedProcess.Priority}"
-                      Width="200"/>
-
-            <Button Content="Apply Priority"
-                    Command="{Binding ChangePriorityCommand}"
-                    CommandParameter="{Binding SelectedProcess.Priority}"
-                    Margin="0,5"/>
-
-            <Button Content="Terminate Process"
-                    Command="{Binding KillCommand}"
-                    Margin="0,5"/>
-
-            <TextBlock Text="THREADS"
-                       FontSize="20"
-                       FontWeight="Bold"
-                       Margin="0,15,0,5"/>
-
-            <DataGrid ItemsSource="{Binding Threads}"
-                      AutoGenerateColumns="True"
-                      Height="200"
-                      IsReadOnly="True"/>
-
-            <TextBlock Text="CPU Affinity"
-                       FontSize="20"
-                       FontWeight="Bold"
-                       Margin="0,15,0,5"/>
-
-            <ItemsControl ItemsSource="{Binding Cores}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <CheckBox Content="{Binding CoreIndex}"
-                                  IsChecked="{Binding IsSelected}"
-                                  Margin="5"/>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <Button Content="Apply Affinity"
-                    Command="{Binding ApplyAffinityCommand}"
-                    Margin="0,5"/>
-
-            <TextBlock Text="PROCESS TREE"
-                       FontSize="20"
-                       FontWeight="Bold"
-                       Margin="0,15,0,5"/>
-
-            <TreeView ItemsSource="{Binding ProcessTree}"
-                      Height="250">
-                <TreeView.ItemTemplate>
-                    <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                        <TextBlock Text="{Binding Name}"/>
-                    </HierarchicalDataTemplate>
-                </TreeView.ItemTemplate>
-            </TreeView>
-
-        </StackPanel>
-    </ScrollViewer>
+            <!-- Мониторинг -->
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="System Monitor"/>
+                <TextBlock Text="{Binding CurrentCpu, StringFormat=CPU: {0:F1}%}"/>
+                <TextBlock Text="{Binding CurrentRam, StringFormat=RAM Used: {0:F0} MB}"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
 </Window>
